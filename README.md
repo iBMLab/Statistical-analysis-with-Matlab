@@ -16,5 +16,5 @@ Week5: ANOVAs and General Linear Model
 
 Week6: Generalized linear model and Mixed model
 
-Week7: Permutation
+Week7: Permutation (Algorithm in Winkler et al., 2014)
 
