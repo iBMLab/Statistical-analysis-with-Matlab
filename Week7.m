@@ -44,7 +44,7 @@ covhlm=mse*((DXg'*DXg)^-1);
 
 %
 % LMM 2
-lmm2=fitlmematrix(DXall,Y,ones(length(Y),1),sbjidx,'Dummyvarcoding','effect');%,'CovariancePattern','Diagonal');
+lmm2=fitlmematrix(DXall,Y,ones(length(Y),1),sbjidx,'Dummyvarcoding','effect','FitMethod', 'REML');%,'CovariancePattern','Diagonal');
 betalmm=lmm2.Coefficients.Estimate;
 covlmm=lmm2.CoefficientCovariance;
 
@@ -54,7 +54,7 @@ tbl.Y=Y;
 tbl.Condi1=nominal(2-double(sum(DXall(:,1:3),2)>0));
 tbl.Condi2=nominal(double(sum(DXall(:,[1 4]),2)>0)+double(sum(DXall(:,[2 5]),2)>0)*2+double(sum(DXall(:,[3 6]),2)>0)*3);
 tbl.sbjidx=sbjidx;
-lmm1=fitlme(tbl,'Y~Condi1*Condi2+(1|sbjidx)','Dummyvarcoding','effect');
+lmm1=fitlme(tbl,'Y~Condi1*Condi2+(1|sbjidx)','Dummyvarcoding','effect','FitMethod', 'REML');
 anova(lmm1)
 
 barall=zeros(2,3);
@@ -90,29 +90,35 @@ FtableHLM=dataset(Fh',df1h',df2h',ph','Varnames',{'Fstat','DF1','DF2','pValue'},
 
 %% Matrix partitioning
 DX1=lmm1.designMatrix; % Sigma-restricted Designmatrix
-DX2=lmm2.designMatrix;  % cell mean Designmatrix
-mdlopt=1;
+DX2=lmm2.designMatrix; % cell mean Designmatrix
+mdlopt=2;
 figure;
 subplot(2,3,1);imagesc(DX1)
 subplot(2,3,2);imagesc(DX2)
 
 Nperm=10000;
 if mdlopt==1
-    DX=DX1;
-    Y = lmm1.response;
-    Zx = designMatrix(lmm1,'Random');
+    DX   = DX1;
+    Y    = lmm1.response;
+    Zx   = designMatrix(lmm1,'Random');
     BLUP = randomEffects(lmm1);
-    bY = Y - Zx*BLUP;
+    bY   = Y - Zx*BLUP;
+    fitml= strcmp(lmm1.FitMethod,'ML');
     % Partition matrix for testing interaction and output original stats
-    c2=[0 0 0 0 1 0;0 0 0 0 0 1];[p,F,df1,df2]=coefTest(lmm1,c2);disp(['F test for the interaction (SR-DX): F(',num2str(df1),',',num2str(df2) ') = ', num2str(F), '; p = ', num2str(p)])
+    c2   = [0 0 0 0 1 0;0 0 0 0 0 1];
+    [p,F,df1,df2]=coefTest(lmm1,c2);
+    disp(['F test for the interaction (SR-DX): F(',num2str(df1),',',num2str(df2) ') = ', num2str(F), '; p = ', num2str(p)])
 else
-    DX=DX2;
-    Y = lmm2.response;
-    Zx = designMatrix(lmm2,'Random');
+    DX   = DX2;
+    Y    = lmm2.response;
+    Zx   = designMatrix(lmm2,'Random');
     BLUP = randomEffects(lmm2);
-    bY = Y - Zx*BLUP;
+    bY   = Y - Zx*BLUP;
+    fitml= strcmp(lmm1.FitMethod,'ML');
     % Partition matrix for testing interaction and output original stats
-    c2=C{ic};[p,F,df1,df2]=coefTest(lmm2,c2);disp(['F test for the interaction (MC-DX): F(',num2str(df1),',',num2str(df2) ') = ', num2str(F), '; p = ', num2str(p)])
+    c2   = C{ic};
+    [p,F,df1,df2]=coefTest(lmm2,c2);
+    disp(['F test for the interaction (MC-DX): F(',num2str(df1),',',num2str(df2) ') = ', num2str(F), '; p = ', num2str(p)])
 end
 
 
@@ -138,7 +144,11 @@ cz     = ones(1,rank(M))-sum(cnew,1);
 bY2    = bY-M(:,cz==1)*obeta(cz==1,:);
 % remove nuisance effects
 bbeta  = M\bY2;
-bMSE   = sum((M*bbeta-bY2).^2)./df2;
+if fitml
+    bMSE   = mean((M*bbeta-bY2).^2); % ML
+else
+    bMSE   = sum((M*bbeta-bY2).^2)./df2; % REML
+end
 covlmm = bMSE*((M'*M)^-1);
 Fparti1= ((cnew*bbeta)'*((cnew*covlmm*cnew')^-1)*(cnew*bbeta))./df1;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -163,7 +173,11 @@ ResidZ = Rz * bY;
 PEs    = pM * ResidZ;
 Resids = Ry * ResidZ;
 bhat   = Con*PEs;
-Fparti2= ((bhat'*(X'*X)*bhat)/rank(Con))/((Resids'*Resids)/(size(M2,1)-rank(X)-rank(Z)));
+if fitml
+    Fparti2= ((bhat'*(X'*X)*bhat)/rank(Con))/((Resids'*Resids)/(size(M2,1)));
+else
+    Fparti2= ((bhat'*(X'*X)*bhat)/rank(Con))/((Resids'*Resids)/(size(M2,1)-rank(X)-rank(Z)));
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % permutation
@@ -175,7 +189,11 @@ for iperm=1:Nperm
     permlist = randperm(size(M,1),size(M,1));
     
     bbeta  = M\bY2(permlist);
-    bMSE   = sum((M*bbeta-bY2(permlist)).^2)./df2;
+    if fitml
+        bMSE   = mean((M*bbeta-bY2(permlist)).^2);
+    else
+        bMSE   = sum((M*bbeta-bY2(permlist)).^2)./df2;
+    end
     covlmm = bMSE*((M'*M)^-1);
     Fperm1(iperm) = ((cnew*bbeta)'*((cnew*covlmm*cnew')^-1)*(cnew*bbeta))./df1;
 end
@@ -188,7 +206,11 @@ for iperm=1:Nperm
     PEs    = pM * ResidZ(permlist);
     Resids = Ry * ResidZ(permlist);
     bhat   = Con*PEs;
-    Fperm2(iperm) = ((bhat'*(X'*X)*bhat)/rank(Con))/((Resids'*Resids)/(size(M2,1)-rank(X)-rank(Z)));
+    if fitml
+        Fperm2(iperm) = ((bhat'*(X'*X)*bhat)/rank(Con))/((Resids'*Resids)/(size(M2,1)));
+    else
+        Fperm2(iperm) = ((bhat'*(X'*X)*bhat)/rank(Con))/((Resids'*Resids)/(size(M2,1)-rank(X)-rank(Z)));
+    end
 end
 toc
 p1=mean(Fperm1>=Fparti1);
