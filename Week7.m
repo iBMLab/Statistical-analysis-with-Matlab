@@ -1,69 +1,68 @@
 %% Permutation on LMM
-clear all
-clc
-close all
-Ns=10;
-Condi1=2;
-Condi2=3;
-Nt=10;
-beta0=[1 2 3,3 2 1]';% [g1_c1 g1_c2 g1_c3, g2_c1 g2_c2 g2_c3]
-sbjMean=0;
-sbjVar=1.5;
-noisevar=5;
-%
-DXss=kron(eye(6),ones(Nt,1));
-DXall=repmat(DXss,[Ns,1]);
+% parameters
+Ns       = 10; % number of subject
+Condi1   = 2;  % levels of condition 1
+Condi2   = 3;  % levels of condition 2
+Nt       = 10; % number of trials
+beta0    = [1 2 3,3 2 1]';% [g1_c1 g1_c2 g1_c3, g2_c1 g2_c2 g2_c3]
+sbjMean  = 0;  
+sbjVar   = 1.5;
+noisevar = 5;
+% Generate dataset
+DXss         = kron(eye(6),ones(Nt,1));
+DXall        = repmat(DXss,[Ns,1]);
 % sbjidx=reshape(repmat(1:Ns,[Nt*Condi1*Condi2,1]),[Ns*Nt*Condi1*Condi2,1]);
-sbjidx=reshape(repmat(1:(Ns*2),[Nt*Condi2,1]),[Ns*Nt*Condi1*Condi2,1]);
-sbjintercept=random('Normal',sbjMean,sbjVar,Ns,1);
-sbjintM=zeros(size(sbjidx));
+sbjidx       = reshape(repmat(1:(Ns*2),[Nt*Condi2,1]),[Ns*Nt*Condi1*Condi2,1]);
+sbjintercept = random('Normal',sbjMean,sbjVar,Ns,1);
+sbjintM      = zeros(size(sbjidx));
 for is=1:Ns
     sbjintM(sbjidx==is)=sbjintercept(is);
 end
 % Y=random('Normal',0,noisevar,[Ns*Condi1*Condi2*Nt,1])+DXall*beta0+sbjintM;
-Y=random('gp',1,1,0,[Ns*Condi1*Condi2*Nt,1])./6+DXall*beta0+sbjintM;
+Y = random('gp',1,1,0,[Ns*Condi1*Condi2*Nt,1])./6+DXall*beta0+sbjintM;
 %
 % HLM
-beta1=zeros(Ns,Condi2);
-DXss2=DXss(1:Nt*Condi2,1:Condi2);
+beta1 = zeros(Ns,Condi2);
+DXss2 = DXss(1:Nt*Condi2,1:Condi2);
 for is=1:Ns
-    Ytmp=Y(sbjidx==is);
-    DXtmp=[DXss2,ones(length(DXss2),1)];
+    Ytmp        = Y(sbjidx==is);
+    DXtmp       = [DXss2,ones(length(DXss2),1)];
     % DXtmp=DXss2;
-    invD=pinv(DXtmp);
-    betatmp=invD*Ytmp;
-    beta1(is,:)=betatmp(1:Condi2);
+    invD        = pinv(DXtmp);
+    betatmp     = invD*Ytmp;
+    beta1(is,:) = betatmp(1:Condi2);
 end
-DX2tmp=repmat(1:Condi2,Ns,1);DX2tmp(2:2:Ns,:)=DX2tmp(2:2:Ns,:)+Condi2;
-Y2=beta1(:);DX2=DX2tmp(:);
-DXg=dummyvar(DX2);
-dfehlm=length(Y2)-rank(DXg);
-beta2=DXg\Y2;
-mse=sum((DXg*beta2-Y2).^2)/dfehlm;
-covhlm=mse*((DXg'*DXg)^-1);
+DX2tmp = repmat(1:Condi2,Ns,1);DX2tmp(2:2:Ns,:)=DX2tmp(2:2:Ns,:)+Condi2;
+Y2     = beta1(:);DX2=DX2tmp(:);
+DXg    = dummyvar(DX2);
+dfehlm = length(Y2)-rank(DXg);
+beta2  = DXg\Y2;
+mse    = sum((DXg*beta2-Y2).^2)/dfehlm;
+covhlm = mse*((DXg'*DXg)^-1);
 
 %
 % LMM 2
-lmm2=fitlmematrix(DXall,Y,ones(length(Y),1),sbjidx,'Dummyvarcoding','effect','FitMethod', 'REML');%,'CovariancePattern','Diagonal');
-betalmm=lmm2.Coefficients.Estimate;
-covlmm=lmm2.CoefficientCovariance;
+lmm2    = fitlmematrix(DXall,Y,ones(length(Y),1),sbjidx,'Dummyvarcoding','effect','FitMethod', 'REML');%,'CovariancePattern','Diagonal');
+betalmm = lmm2.Coefficients.Estimate;
+covlmm  = lmm2.CoefficientCovariance;
 
 % LMM 1
-tbl=dataset;
-tbl.Y=Y;
-tbl.Condi1=nominal(2-double(sum(DXall(:,1:3),2)>0));
-tbl.Condi2=nominal(double(sum(DXall(:,[1 4]),2)>0)+double(sum(DXall(:,[2 5]),2)>0)*2+double(sum(DXall(:,[3 6]),2)>0)*3);
-tbl.sbjidx=sbjidx;
-lmm1=fitlme(tbl,'Y~Condi1*Condi2+(1|sbjidx)','Dummyvarcoding','effect','FitMethod', 'REML');
+tbl        = dataset;
+tbl.Y      = Y;
+tbl.Condi1 = nominal(2-double(sum(DXall(:,1:3),2)>0));
+tbl.Condi2 = nominal(double(sum(DXall(:,[1 4]),2)>0)+double(sum(DXall(:,[2 5]),2)>0)*2+double(sum(DXall(:,[3 6]),2)>0)*3);
+tbl.sbjidx = sbjidx;
+lmm1       = fitlme(tbl,'Y~Condi1*Condi2+(1|sbjidx)','Dummyvarcoding','effect','FitMethod', 'REML');
 anova(lmm1)
 
-barall=zeros(2,3);
+barall = zeros(2,3);
 for ic1=1:2
     for ic2=1:3
-        indx=double(tbl.Condi1)==ic1&double(tbl.Condi2)==ic2;
-        barall(ic1,ic2)=mean(Y(indx));
+        indx = double(tbl.Condi1)==ic1&double(tbl.Condi2)==ic2;
+        barall(ic1,ic2) = mean(Y(indx));
     end
 end
+% plot result
 figure;
 subplot(1,3,1)
 bar(mean(barall,2))
@@ -75,18 +74,18 @@ subplot(1,3,3)
 bar(barall)
 
 % ANOVA
-C=limo_OrthogContrasts([Condi1,Condi2]);
+C = limo_OrthogContrasts([Condi1,Condi2]);
 clear pl Fl df1l df2l ph Fh df1h df2h
 for ic=1:3
-    c=C{ic};
-    [pl(ic),Fl(ic),df1l(ic),df2l(ic)]=coefTest(lmm2,c);
-    df1h(ic)=rank(c);
-    df2h(ic)=dfehlm;%(Ns-1)*rank(c);
-    Fh(ic)=((c*beta2)'*((c*covhlm*c')^-1)*(c*beta2))./rank(c);
-    ph(ic)=1-fcdf(Fh(ic),df1h(ic),df2h(ic));
+    c = C{ic};
+    [pl(ic),Fl(ic),df1l(ic),df2l(ic)] = coefTest(lmm2,c);
+    df1h(ic) = rank(c);
+    df2h(ic) = dfehlm;%(Ns-1)*rank(c);
+    Fh(ic)   = ((c*beta2)'*((c*covhlm*c')^-1)*(c*beta2))./rank(c);
+    ph(ic)   = 1-fcdf(Fh(ic),df1h(ic),df2h(ic));
 end
-FtableLME=dataset(Fl',df1l',df2l',pl','Varnames',{'Fstat','DF1','DF2','pValue'},'ObsNames',{'Condi1','Condi2','Interation'})
-FtableHLM=dataset(Fh',df1h',df2h',ph','Varnames',{'Fstat','DF1','DF2','pValue'},'ObsNames',{'Condi1','Condi2','Interation'})
+FtableLME = dataset(Fl',df1l',df2l',pl','Varnames',{'Fstat','DF1','DF2','pValue'},'ObsNames',{'Condi1','Condi2','Interation'})
+FtableHLM = dataset(Fh',df1h',df2h',ph','Varnames',{'Fstat','DF1','DF2','pValue'},'ObsNames',{'Condi1','Condi2','Interation'})
 
 %% Matrix partitioning
 DX1=lmm1.designMatrix; % Sigma-restricted Designmatrix
