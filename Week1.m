@@ -3,8 +3,8 @@
 % presentation, and organization of data (Wikipedia).
 %
 % Inference: deductive reasoning whenever enough information is at hand to
-% permit it; inductive or plausible reasoning when – as is almost
-% invariably the case in real problems – the necessary information is not
+% permit it; inductive or plausible reasoning when - as is almost
+% invariably the case in real problems - the necessary information is not
 % available. But if a problem can be solved by deductive reasoning,
 % probability theory is not needed for it; thus our topic is the optimal
 % processing of incomplete information.
